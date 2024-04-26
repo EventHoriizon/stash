@@ -14,6 +14,7 @@ import (
 
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/sliceutil"
+	"github.com/stashapp/stash/pkg/utils"
 )
 
 const (
@@ -339,6 +340,7 @@ func (qb *MovieStore) makeFilter(ctx context.Context, movieFilter *models.MovieF
 	query.handleCriterion(ctx, stringCriterionHandler(movieFilter.URL, "movies.url"))
 	query.handleCriterion(ctx, studioCriterionHandler(movieTable, movieFilter.Studios))
 	query.handleCriterion(ctx, moviePerformersCriterionHandler(qb, movieFilter.Performers))
+	query.handleCriterion(ctx, movieOCounterCriterionHandler(qb, movieFilter.OCounter))
 	query.handleCriterion(ctx, dateCriterionHandler(movieFilter.Date, "movies.date"))
 	query.handleCriterion(ctx, timestampCriterionHandler(movieFilter.CreatedAt, "movies.created_at"))
 	query.handleCriterion(ctx, timestampCriterionHandler(movieFilter.UpdatedAt, "movies.updated_at"))
@@ -466,6 +468,25 @@ func moviePerformersCriterionHandler(qb *MovieStore, performers *models.MultiCri
 	}
 }
 
+func movieOCounterCriterionHandler(qb *MovieStore, count *models.IntCriterionInput) criterionHandlerFunc {
+	return func(ctx context.Context, f *filterBuilder) {
+		if count == nil {
+			return
+		}
+
+		lhs := "(" + selectMovieOCountSQL + ")"
+		clause, args := getIntCriterionWhereClause(lhs, *count)
+
+		f.addWhere(clause, args...)
+	}
+
+}
+
+func (qb *MovieStore) sortByOCounter(direction string) string {
+	// need to sum the o_counter from scenes and images
+	return " ORDER BY (" + selectMovieOCountSQL + ") " + direction
+}
+
 func (qb *MovieStore) getMovieSort(findFilter *models.FindFilterType) string {
 	var sort string
 	var direction string
@@ -481,6 +502,8 @@ func (qb *MovieStore) getMovieSort(findFilter *models.FindFilterType) string {
 	switch sort {
 	case "scenes_count": // generic getSort won't work for this
 		sortQuery += getCountSort(movieTable, moviesScenesTable, movieIDColumn, direction)
+	case "o_counter":
+		sortQuery += qb.sortByOCounter(direction)
 	default:
 		sortQuery += getSort(sort, direction, "movies")
 	}
@@ -583,3 +606,23 @@ WHERE movies.studio_id = ?
 	args := []interface{}{studioID}
 	return qb.runCountQuery(ctx, query, args)
 }
+
+// used for sorting and filtering on performer o-count
+var selectMovieOCountSQL = utils.StrFormat(
+	"SELECT SUM(o_counter) "+
+		"FROM ("+
+		"SELECT COUNT({scenes_o_dates}.{o_date}) as o_counter from {movie_scenes} s "+
+		"LEFT JOIN {scenes} ON {scenes}.id = s.{scene_id} "+
+		"LEFT JOIN {scenes_o_dates} ON {scenes_o_dates}.{scene_id} = {scenes}.id "+
+		"WHERE s.{movie_id} = {movies}.id "+
+		")",
+	map[string]interface{}{
+		"movies":         movieTable,
+		"movie_id":       movieIDColumn,
+		"movie_scenes":   moviesScenesTable,
+		"scenes":         sceneTable,
+		"scene_id":       sceneIDColumn,
+		"scenes_o_dates": scenesODatesTable,
+		"o_date":         sceneODateColumn,
+	},
+)

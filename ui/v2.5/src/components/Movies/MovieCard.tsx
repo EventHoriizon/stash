@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Button, ButtonGroup } from "react-bootstrap";
 import * as GQL from "src/core/generated-graphql";
 import { GridCard, calculateCardWidth } from "../Shared/GridCard/GridCard";
+import { SweatDrops } from "../Shared/SweatDrops";
 import { HoverPopover } from "../Shared/HoverPopover";
 import { Icon } from "../Shared/Icon";
 import { SceneLink } from "../Shared/TagLink";
@@ -76,10 +77,26 @@ export const MovieCard: React.FC<IProps> = (props: IProps) => {
           <hr />
           <ButtonGroup className="card-popovers">
             {maybeRenderScenesPopoverButton()}
+            {maybeRenderOCounter()}
           </ButtonGroup>
         </>
       );
     }
+  }
+
+  function maybeRenderOCounter() {
+    if (!props.movie.o_counter) return;
+
+    return (
+      <div className="o-counter">
+        <Button className="minimal">
+          <span className="fa-icon">
+            <SweatDrops />
+          </span>
+          <span>{props.movie.o_counter}</span>
+        </Button>
+      </div>
+    );
   }
 
   return (

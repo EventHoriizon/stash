@@ -18,6 +18,8 @@ type MovieFilterType struct {
 	Performers *MultiCriterionInput `json:"performers"`
 	// Filter by date
 	Date *DateCriterionInput `json:"date"`
+	// Filter by O counter
+	OCounter *IntCriterionInput `json:"o_counter"`
 	// Filter by created at
 	CreatedAt *TimestampCriterionInput `json:"created_at"`
 	// Filter by updated at
