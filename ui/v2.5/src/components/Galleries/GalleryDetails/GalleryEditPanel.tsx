@@ -18,14 +18,12 @@ import {
   useListGalleryScrapers,
   mutateReloadScrapers,
 } from "src/core/StashService";
-import { SceneSelect } from "src/components/Shared/Select";
 import { Icon } from "src/components/Shared/Icon";
 import { LoadingIndicator } from "src/components/Shared/LoadingIndicator";
 import { useToast } from "src/hooks/Toast";
 import { useFormik } from "formik";
 import { GalleryScrapeDialog } from "./GalleryScrapeDialog";
 import { faSyncAlt } from "@fortawesome/free-solid-svg-icons";
-import { galleryTitle } from "src/core/galleries";
 import isEqual from "lodash-es/isEqual";
 import { handleUnsavedChanges } from "src/utils/navigation";
 import {
@@ -38,8 +36,9 @@ import {
   yupUniqueStringList,
 } from "src/utils/yup";
 import { formikUtils } from "src/utils/form";
-import { Tag, TagSelect } from "src/components/Tags/TagSelect";
 import { Studio, StudioSelect } from "src/components/Studios/StudioSelect";
+import { Scene, SceneSelect } from "src/components/Scenes/SceneSelect";
+import { useTagsEdit } from "src/hooks/tagsEdit";
 
 interface IProps {
   gallery: Partial<GQL.GalleryDataFragment>;
@@ -56,15 +55,9 @@ export const GalleryEditPanel: React.FC<IProps> = ({
 }) => {
   const intl = useIntl();
   const Toast = useToast();
-  const [scenes, setScenes] = useState<{ id: string; title: string }[]>(
-    (gallery?.scenes ?? []).map((s) => ({
-      id: s.id,
-      title: galleryTitle(s),
-    }))
-  );
+  const [scenes, setScenes] = useState<Scene[]>([]);
 
   const [performers, setPerformers] = useState<Performer[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
   const [studio, setStudio] = useState<Studio | null>(null);
 
   const isNew = gallery.id === undefined;
@@ -116,12 +109,12 @@ export const GalleryEditPanel: React.FC<IProps> = ({
     onSubmit: (values) => onSave(schema.cast(values)),
   });
 
-  interface ISceneSelectValue {
-    id: string;
-    title: string;
-  }
+  const { tags, updateTagsStateFromScraper, tagsControl } = useTagsEdit(
+    gallery.tags,
+    (ids) => formik.setFieldValue("tag_ids", ids)
+  );
 
-  function onSetScenes(items: ISceneSelectValue[]) {
+  function onSetScenes(items: Scene[]) {
     setScenes(items);
     formik.setFieldValue(
       "scene_ids",
@@ -137,14 +130,6 @@ export const GalleryEditPanel: React.FC<IProps> = ({
     );
   }
 
-  function onSetTags(items: Tag[]) {
-    setTags(items);
-    formik.setFieldValue(
-      "tag_ids",
-      items.map((item) => item.id)
-    );
-  }
-
   function onSetStudio(item: Studio | null) {
     setStudio(item);
     formik.setFieldValue("studio_id", item ? item.id : null);
@@ -155,12 +140,12 @@ export const GalleryEditPanel: React.FC<IProps> = ({
   }, [gallery.performers]);
 
   useEffect(() => {
-    setTags(gallery.tags ?? []);
-  }, [gallery.tags]);
-
-  useEffect(() => {
     setStudio(gallery.studio ?? null);
   }, [gallery.studio]);
+
+  useEffect(() => {
+    setScenes(gallery.scenes ?? []);
+  }, [gallery.scenes]);
 
   useEffect(() => {
     if (isVisible) {
@@ -346,23 +331,7 @@ export const GalleryEditPanel: React.FC<IProps> = ({
       }
     }
 
-    if (galleryData?.tags?.length) {
-      const idTags = galleryData.tags.filter((t) => {
-        return t.stored_id !== undefined && t.stored_id !== null;
-      });
-
-      if (idTags.length > 0) {
-        onSetTags(
-          idTags.map((p) => {
-            return {
-              id: p.stored_id!,
-              name: p.name ?? "",
-              aliases: [],
-            };
-          })
-        );
-      }
-    }
+    updateTagsStateFromScraper(galleryData.tags ?? undefined);
   }
 
   async function onScrapeGalleryURL(url: string) {
@@ -412,7 +381,7 @@ export const GalleryEditPanel: React.FC<IProps> = ({
     const title = intl.formatMessage({ id: "scenes" });
     const control = (
       <SceneSelect
-        selected={scenes}
+        values={scenes}
         onSelect={(items) => onSetScenes(items)}
         isMulti
       />
@@ -444,16 +413,7 @@ export const GalleryEditPanel: React.FC<IProps> = ({
 
   function renderTagsField() {
     const title = intl.formatMessage({ id: "tags" });
-    const control = (
-      <TagSelect
-        isMulti
-        onSelect={onSetTags}
-        values={tags}
-        hoverPlacement="right"
-      />
-    );
-
-    return renderField("tag_ids", title, control, fullWidthProps);
+    return renderField("tag_ids", title, tagsControl(), fullWidthProps);
   }
 
   function renderDetailsField() {

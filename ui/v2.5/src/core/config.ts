@@ -2,7 +2,12 @@ import { IntlShape } from "react-intl";
 import { ITypename } from "src/utils/data";
 import { ImageWallOptions } from "src/utils/imageWall";
 import { RatingSystemOptions } from "src/utils/rating";
-import { FilterMode, SortDirectionEnum } from "./generated-graphql";
+import {
+  FilterMode,
+  SavedFilterDataFragment,
+  SortDirectionEnum,
+} from "./generated-graphql";
+import { View } from "src/components/List/views";
 
 // NOTE: double capitals aren't converted correctly in the backend
 
@@ -24,6 +29,10 @@ export interface ICustomFilter extends ITypename {
   sortBy: string;
   direction: SortDirectionEnum;
 }
+
+export type DefaultFilters = {
+  [P in View]?: SavedFilterDataFragment;
+};
 
 export type FrontPageContent = ISavedFilterRow | ICustomFilter;
 
@@ -86,48 +95,14 @@ export interface IUIConfig {
   advancedMode?: boolean;
 
   taskDefaults?: Record<string, {}>;
+
+  defaultFilters?: DefaultFilters;
 }
 
-interface ISavedFilterRowBroken extends ISavedFilterRow {
-  savedfilterid?: number;
-}
-
-interface ICustomFilterBroken extends ICustomFilter {
-  sortby?: string;
-}
-
-type FrontPageContentBroken = ISavedFilterRowBroken | ICustomFilterBroken;
-
-// #4128: deal with incorrectly insensitivised keys (sortBy and savedFilterId)
 export function getFrontPageContent(
   ui: IUIConfig | undefined
 ): FrontPageContent[] | undefined {
-  return (ui?.frontPageContent as FrontPageContentBroken[] | undefined)?.map(
-    (content) => {
-      switch (content.__typename) {
-        case "SavedFilter":
-          if (content.savedfilterid) {
-            return {
-              ...content,
-              savedFilterId: content.savedFilterId ?? content.savedfilterid,
-              savedfilterid: undefined,
-            };
-          }
-          return content;
-        case "CustomFilter":
-          if (content.sortby) {
-            return {
-              ...content,
-              sortBy: content.sortBy ?? content.sortby,
-              sortby: undefined,
-            };
-          }
-          return content;
-        default:
-          return content;
-      }
-    }
-  );
+  return ui?.frontPageContent as FrontPageContent[] | undefined;
 }
 
 function recentlyReleased(
